@@ -1,0 +1,379 @@
+# 🛍️ BOUTIQUE DINIZ - API DE RECEBIMENTO DE DADOS
+
+**Desenvolvido por:** Atlas Soluções
+
+---
+
+## 📋 INSTRUÇÕES DE IMPLEMENTAÇÃO
+
+### Passo 1: Criar a Planilha Google Sheets
+
+1. Acesse: https://sheets.google.com
+2. Crie uma nova planilha chamada "Boutique Diniz - Clientes"
+3. Copie o ID da planilha (está na URL, entre `/d/` e `/edit`)
+   - Exemplo: `https://docs.google.com/spreadsheets/d/ABC123XYZ/edit`
+   - O ID seria: `ABC123XYZ`
+
+### Passo 2: Criar o Google Apps Script
+
+1. Na planilha, clique em **Extensões** → **Apps Script**
+2. Apague o código padrão
+3. Cole o código do arquivo `boutique-diniz-api.gs`
+4. **IMPORTANTE:** Na linha 13, substitua `COLE_AQUI_O_ID_DA_SUA_PLANILHA` pelo ID da planilha
+5. Na linha 19, configure seu email para notificações (opcional)
+6. Clique em **Salvar** (ícone de disquete)
+
+### Passo 3: Publicar como Web App
+
+1. Clique em **Implantar** → **Nova implantação**
+2. Clique no ícone de engrenagem ⚙️ → Selecione **Aplicativo da Web**
+3. Configure:
+   - **Descrição:** API Boutique Diniz
+   - **Executar como:** Eu (seu email)
+   - **Quem tem acesso:** Qualquer pessoa
+4. Clique em **Implantar**
+5. Copie a **URL do aplicativo da Web** - esta é sua URL da API! 🎉
+
+### Passo 4: Testar a API
+
+Execute a função `testarAPI()` no Apps Script para verificar se tudo está funcionando.
+
+---
+
+## 🔗 COMO USAR A API
+
+### Formato da Requisição GET
+
+```
+https://script.google.com/macros/s/SEU_ID_AQUI/exec?email=EMAIL_DO_CLIENTE&dados=DADOS_JSON
+```
+
+### Parâmetros Obrigatórios
+
+| Parâmetro | Descrição | Exemplo |
+|-----------|-----------|---------|
+| `email` | Email do cliente | `cliente@email.com` |
+| `dados` | Dados em formato JSON | `{"nome":"João","telefone":"27999999999"}` |
+
+### Campos Automáticos (não precisa enviar)
+
+- ✅ **marca**: Sempre "Boutique Diniz"
+- ✅ **dataRecebimento**: Data/hora automática
+- ✅ **origem**: "Atlas Soluções"
+
+---
+
+## 💡 EXEMPLOS DE USO
+
+### Exemplo 1: Envio Simples
+
+```
+https://script.google.com/macros/s/SEU_ID/exec?email=maria@email.com&dados={"nome":"Maria Silva","telefone":"27999887766"}
+```
+
+### Exemplo 2: Envio Completo
+
+```
+https://script.google.com/macros/s/SEU_ID/exec?email=joao@email.com&dados={"nome":"João Santos","telefone":"27988776655","cidade":"Cachoeiro de Itapemirim","mensagem":"Gostaria de saber sobre vestidos"}
+```
+
+### Exemplo 3: JavaScript (Frontend)
+
+```javascript
+// Função para enviar dados para a API
+async function enviarDadosBoutique(email, nome, telefone, cidade, mensagem) {
+    const dados = {
+        nome: nome,
+        telefone: telefone,
+        cidade: cidade,
+        mensagem: mensagem
+    };
+    
+    const url = `https://script.google.com/macros/s/SEU_ID/exec?email=${encodeURIComponent(email)}&dados=${encodeURIComponent(JSON.stringify(dados))}`;
+    
+    try {
+        const resposta = await fetch(url);
+        const resultado = await resposta.json();
+        
+        if (resultado.status === 'success') {
+            console.log('✅ Dados enviados com sucesso!');
+            console.log(resultado);
+        } else {
+            console.error('❌ Erro:', resultado.mensagem);
+        }
+    } catch (erro) {
+        console.error('❌ Erro ao enviar:', erro);
+    }
+}
+
+// Exemplo de uso
+enviarDadosBoutique(
+    'cliente@email.com',
+    'Ana Paula',
+    '27999887766',
+    'Vitória',
+    'Interesse na coleção de verão'
+);
+```
+
+### Exemplo 4: HTML - Formulário de Contato
+
+```html
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Boutique Diniz - Contato</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 500px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background: #4a86e8;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #357abd;
+        }
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .mensagem {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            display: none;
+        }
+        .sucesso {
+            background: #d4edda;
+            color: #155724;
+        }
+        .erro {
+            background: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="logo">
+        <h1>🛍️ Boutique Diniz</h1>
+        <p>Entre em contato conosco</p>
+    </div>
+
+    <div id="mensagem" class="mensagem"></div>
+
+    <form id="formContato">
+        <div class="form-group">
+            <label>Nome *</label>
+            <input type="text" id="nome" required>
+        </div>
+
+        <div class="form-group">
+            <label>Email *</label>
+            <input type="email" id="email" required>
+        </div>
+
+        <div class="form-group">
+            <label>Telefone *</label>
+            <input type="tel" id="telefone" required>
+        </div>
+
+        <div class="form-group">
+            <label>Cidade</label>
+            <input type="text" id="cidade">
+        </div>
+
+        <div class="form-group">
+            <label>Mensagem</label>
+            <textarea id="mensagem" rows="4"></textarea>
+        </div>
+
+        <button type="submit">Enviar</button>
+    </form>
+
+    <script>
+        const API_URL = 'https://script.google.com/macros/s/SEU_ID_AQUI/exec';
+
+        document.getElementById('formContato').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const dados = {
+                nome: document.getElementById('nome').value,
+                telefone: document.getElementById('telefone').value,
+                cidade: document.getElementById('cidade').value,
+                mensagem: document.getElementById('mensagem').value
+            };
+
+            const email = document.getElementById('email').value;
+
+            const url = `${API_URL}?email=${encodeURIComponent(email)}&dados=${encodeURIComponent(JSON.stringify(dados))}`;
+
+            try {
+                const resposta = await fetch(url);
+                const resultado = await resposta.json();
+
+                const divMensagem = document.getElementById('mensagem');
+                
+                if (resultado.status === 'success') {
+                    divMensagem.className = 'mensagem sucesso';
+                    divMensagem.textContent = '✅ Mensagem enviada com sucesso! Entraremos em contato em breve.';
+                    document.getElementById('formContato').reset();
+                } else {
+                    divMensagem.className = 'mensagem erro';
+                    divMensagem.textContent = '❌ Erro: ' + resultado.mensagem;
+                }
+
+                divMensagem.style.display = 'block';
+
+            } catch (erro) {
+                const divMensagem = document.getElementById('mensagem');
+                divMensagem.className = 'mensagem erro';
+                divMensagem.textContent = '❌ Erro ao enviar mensagem. Tente novamente.';
+                divMensagem.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>
+```
+
+---
+
+## 📊 ESTRUTURA DA PLANILHA
+
+Os dados são salvos automaticamente com as seguintes colunas:
+
+| Coluna | Descrição |
+|--------|-----------|
+| Data/Hora | Momento do recebimento |
+| Marca | Sempre "Boutique Diniz" |
+| Email | Email do cliente |
+| Nome | Nome do cliente |
+| Telefone | Telefone de contato |
+| Cidade | Cidade do cliente |
+| Mensagem | Mensagem enviada |
+| Dados Completos | JSON completo recebido |
+| Origem | Sempre "Atlas Soluções" |
+
+---
+
+## 🎯 RESPOSTAS DA API
+
+### Sucesso (200)
+
+```json
+{
+  "status": "success",
+  "codigo": 200,
+  "marca": "Boutique Diniz",
+  "sistema": "Atlas Soluções",
+  "dados": {
+    "mensagem": "Dados recebidos com sucesso!",
+    "email": "cliente@email.com",
+    "marca": "Boutique Diniz",
+    "timestamp": "12/02/2026 10:30:45"
+  }
+}
+```
+
+### Erro (400)
+
+```json
+{
+  "status": "error",
+  "codigo": 400,
+  "marca": "Boutique Diniz",
+  "sistema": "Atlas Soluções",
+  "mensagem": "Email é obrigatório"
+}
+```
+
+---
+
+## 🔒 SEGURANÇA
+
+- ✅ Validação de email obrigatória
+- ✅ Validação de formato JSON
+- ✅ Registro com timestamp automático
+- ✅ Marca obrigatória (Boutique Diniz)
+- ✅ Logs de erro detalhados
+
+---
+
+## 📧 NOTIFICAÇÕES POR EMAIL (Opcional)
+
+Para ativar notificações por email:
+
+1. Descomente a linha 49 do script: `// enviarNotificacao(dados);`
+2. Configure o email na linha 19
+3. Você receberá um email formatado a cada novo contato
+
+---
+
+## 🛠️ MANUTENÇÃO
+
+### Ver Logs de Execução
+
+1. No Apps Script, clique em **Execuções**
+2. Veja histórico de requisições e erros
+
+### Testar Manualmente
+
+Execute a função `testarAPI()` no editor do Apps Script
+
+### Criar Nova Versão
+
+Ao fazer alterações:
+1. Salve o script
+2. **Implantar** → **Gerenciar implantações**
+3. Clique no ícone de lápis ✏️
+4. Selecione **Nova versão**
+5. Implante
+
+---
+
+## 📞 SUPORTE
+
+**Desenvolvido por:** Atlas Soluções  
+**Para:** Boutique Diniz  
+**Data:** Fevereiro 2026
+
+---
+
+## ✨ RECURSOS EXTRAS
+
+### Campos que você pode enviar no JSON:
+
+- `nome` ou `name`
+- `telefone` ou `phone`
+- `cidade` ou `city`
+- `mensagem` ou `message`
+- Qualquer outro campo personalizado que desejar!
+
+Todos os campos extras serão salvos na coluna "Dados Completos" da planilha.
+
+---
+
+**🎉 Pronto! Sua API está funcionando!**

@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Boutique Diniz - Configuração de Segurança</title>
+    <style>
+        :root {
+            --primary-color: #1a1a1a;
+            --secondary-color: #c5a059;
+            --bg-color: #f4f4f4;
+            --text-color: #333;
+            --white: #ffffff;
+            --danger: #e74c3c;
+            --success: #2ecc71;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background: var(--white);
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 600px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: var(--primary-color);
+            font-size: 24px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        #login-section, #admin-section {
+            display: none;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        input[type="password"], input[type="text"], input[type="url"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--secondary-color);
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: var(--primary-color);
+            color: var(--white);
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            text-transform: uppercase;
+        }
+
+        button:hover {
+            background-color: #333;
+        }
+
+        button.secondary {
+            background-color: var(--secondary-color);
+            margin-top: 10px;
+        }
+
+        button.danger {
+            background-color: var(--danger);
+            padding: 6px 12px;
+            font-size: 12px;
+            width: auto;
+        }
+
+        .url-list {
+            margin-top: 30px;
+            border-top: 1px solid #eee;
+            padding-top: 20px;
+        }
+
+        .url-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: #f9f9f9;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            border-left: 4px solid var(--secondary-color);
+        }
+
+        .url-info {
+            flex: 1;
+            margin-right: 10px;
+        }
+
+        .url-info strong {
+            display: block;
+            font-size: 14px;
+            word-break: break-all;
+        }
+
+        .url-info span {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .message {
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .message.error {
+            background-color: #fdecea;
+            color: var(--danger);
+            display: block;
+        }
+
+        .message.success {
+            background-color: #eafaf1;
+            color: var(--success);
+            display: block;
+        }
+
+        .logout-btn {
+            background: none;
+            color: #888;
+            border: none;
+            width: auto;
+            font-size: 12px;
+            text-decoration: underline;
+            margin-top: 20px;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Boutique Diniz</h1>
+            <p>Painel de Segurança - URLs Autorizadas</p>
+        </div>
+
+        <div id="message" class="message"></div>
+
+        <!-- Seção de Login -->
+        <div id="login-section" style="display: block;">
+            <div class="form-group">
+                <label for="password">Senha de Acesso</label>
+                <input type="password" id="password" placeholder="Digite a senha adm">
+            </div>
+            <button onclick="login()">Acessar Painel</button>
+        </div>
+
+        <!-- Seção Administrativa -->
+        <div id="admin-section">
+            <div class="form-group">
+                <label for="new-url">Nova URL Autorizada</label>
+                <input type="url" id="new-url" placeholder="https://exemplo.com">
+            </div>
+            <div class="form-group">
+                <label for="url-desc">Descrição (Opcional)</label>
+                <input type="text" id="url-desc" placeholder="Ex: Chamadas do Site Principal">
+            </div>
+            <button class="secondary" onclick="addUrl()">Autorizar URL</button>
+
+            <div class="url-list" id="url-list">
+                <h3>URLs Autorizadas</h3>
+                <div id="urls-container" style="margin-top: 15px;">
+                    <!-- URLs serão carregadas aqui -->
+                    <p style="text-align: center; color: #999;">Carregando...</p>
+                </div>
+            </div>
+
+            <button class="logout-btn" onclick="logout()">Sair do Sistema</button>
+        </div>
+    </div>
+
+    <script>
+        let isAuthenticated = false;
+
+        function showMessage(text, type) {
+            const msgDiv = document.getElementById('message');
+            msgDiv.textContent = text;
+            msgDiv.className = 'message ' + type;
+            setTimeout(() => {
+                msgDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        async function login() {
+            const password = document.getElementById('password').value;
+            try {
+                const response = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password })
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    isAuthenticated = true;
+                    sessionStorage.setItem('admin_auth', 'true');
+                    document.getElementById('login-section').style.display = 'none';
+                    document.getElementById('admin-section').style.display = 'block';
+                    loadUrls();
+                } else {
+                    showMessage('Senha incorreta!', 'error');
+                }
+            } catch (error) {
+                showMessage('Erro ao conectar com o servidor', 'error');
+            }
+        }
+
+        async function loadUrls() {
+            if (!isAuthenticated) return;
+            try {
+                const response = await fetch('/api/admin/urls');
+                const data = await response.json();
+                const container = document.getElementById('urls-container');
+                
+                if (data.success && data.data.length > 0) {
+                    container.innerHTML = '';
+                    data.data.forEach(item => {
+                        const div = document.createElement('div');
+                        div.className = 'url-item';
+                        div.innerHTML = `
+                            <div class="url-info">
+                                <strong>${item.url}</strong>
+                                <span>${item.descricao || 'Sem descrição'}</span>
+                            </div>
+                            <button class="danger" onclick="removeUrl(${item.id})">Remover</button>
+                        `;
+                        container.appendChild(div);
+                    });
+                } else {
+                    container.innerHTML = '<p style="text-align: center; color: #999;">Nenhuma URL autorizada.</p>';
+                }
+            } catch (error) {
+                showMessage('Erro ao carregar URLs', 'error');
+            }
+        }
+
+        async function addUrl() {
+            const url = document.getElementById('new-url').value;
+            const descricao = document.getElementById('url-desc').value;
+
+            if (!url) {
+                showMessage('A URL é obrigatória', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/admin/urls', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, descricao })
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    showMessage('URL autorizada com sucesso!', 'success');
+                    document.getElementById('new-url').value = '';
+                    document.getElementById('url-desc').value = '';
+                    loadUrls();
+                } else {
+                    showMessage(data.message || 'Erro ao adicionar URL', 'error');
+                }
+            } catch (error) {
+                showMessage('Erro ao conectar com o servidor', 'error');
+            }
+        }
+
+        async function removeUrl(id) {
+            if (!confirm('Deseja realmente remover esta URL?')) return;
+
+            try {
+                const response = await fetch(`/api/admin/urls/${id}`, {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    showMessage('URL removida!', 'success');
+                    loadUrls();
+                } else {
+                    showMessage('Erro ao remover URL', 'error');
+                }
+            } catch (error) {
+                showMessage('Erro ao conectar com o servidor', 'error');
+            }
+        }
+
+        function logout() {
+            isAuthenticated = false;
+            sessionStorage.removeItem('admin_auth');
+            document.getElementById('login-section').style.display = 'block';
+            document.getElementById('admin-section').style.display = 'none';
+            document.getElementById('password').value = '';
+        }
+
+        // Verificar se já estava logado nesta sessão
+        if (sessionStorage.getItem('admin_auth') === 'true') {
+            isAuthenticated = true;
+            document.getElementById('login-section').style.display = 'none';
+            document.getElementById('admin-section').style.display = 'block';
+            loadUrls();
+        }
+    </script>
+</body>
+</html>
