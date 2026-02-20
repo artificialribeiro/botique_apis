@@ -2,18 +2,50 @@
  * BOUTIQUE DINIZ API - Controller Administrativo
  * Desenvolvido por Estúdio Atlas
  *
- * CORREÇÃO v3:
- *   - Login admin com senha fixa '1526' corrigido (removido async/await)
+ * CORREÇÃO v4:
+ *   - Cadastro de URLs protegido por chave de segurança "1526105"
+ *   - Login admin mantém senha '1526' para acesso ao painel
+ *   - Para ADICIONAR ou REMOVER URLs, o usuário precisa informar a chave "1526105"
+ *   - A chave pode vir no body (campo "chave") ou no header "X-Admin-Key"
  *   - Todas as queries usam better-sqlite3 síncrono (sem await)
- *   - Adicionada recuperação de senha de funcionários via webhook
  */
 
 const db = require('../config/database');
 const config = require('../config');
-const { success, unauthorized, internalError, notFound, validationError, created } = require('../utils/response');
+const { success, unauthorized, internalError, notFound, validationError, created, forbidden } = require('../utils/response');
 const logger = require('../utils/logger');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+
+// ============================================
+// CHAVE DE SEGURANÇA PARA GERENCIAMENTO DE URLs
+// ============================================
+const ADMIN_SECURITY_KEY = process.env.ADMIN_SECURITY_KEY || '1526105';
+
+/**
+ * Valida a chave de segurança para operações com URLs
+ * A chave pode vir de:
+ *   1. Header "X-Admin-Key"
+ *   2. Body campo "chave"
+ *   3. Query param "chave"
+ */
+function validarChaveSeguranca(req) {
+  const chaveHeader = req.headers['x-admin-key'];
+  const chaveBody = req.body && req.body.chave;
+  const chaveQuery = req.query && req.query.chave;
+
+  const chaveRecebida = chaveHeader || chaveBody || chaveQuery;
+
+  if (!chaveRecebida) {
+    return { valido: false, motivo: 'Chave de segurança não fornecida. Informe a chave para autorizar esta operação.' };
+  }
+
+  if (String(chaveRecebida).trim() !== ADMIN_SECURITY_KEY) {
+    return { valido: false, motivo: 'Chave de segurança incorreta.' };
+  }
+
+  return { valido: true };
+}
 
 /**
  * GET /admin/config
@@ -50,7 +82,7 @@ function login(req, res) {
 
 /**
  * GET /api/admin/urls
- * Lista as URLs autorizadas
+ * Lista as URLs autorizadas (não precisa de chave, apenas estar logado)
  */
 function listarUrls(req, res) {
   try {
@@ -66,12 +98,20 @@ function listarUrls(req, res) {
 /**
  * POST /api/admin/urls
  * Adiciona uma nova URL autorizada
+ * REQUER: chave de segurança "1526105" (via header X-Admin-Key, body.chave ou query.chave)
  */
 function adicionarUrl(req, res) {
+  // Validar chave de segurança
+  const validacao = validarChaveSeguranca(req);
+  if (!validacao.valido) {
+    logger.warn('Tentativa de adicionar URL sem chave válida', { ip: req.ip, motivo: validacao.motivo });
+    return forbidden(res, validacao.motivo);
+  }
+
   const { url, descricao } = req.body;
 
   if (!url) {
-    return internalError(res, 'URL é obrigatória');
+    return validationError(res, [{ field: 'url', issue: 'URL é obrigatória' }]);
   }
 
   try {
@@ -81,7 +121,7 @@ function adicionarUrl(req, res) {
       VALUES (?, ?)
     `).run(url, descricao || '');
 
-    logger.info(`Nova URL autorizada adicionada: ${url}`);
+    logger.info('Nova URL autorizada adicionada: ' + url, { ip: req.ip });
     return success(res, null, 'URL adicionada com sucesso');
   } catch (error) {
     if (error.message && error.message.includes('UNIQUE')) {
@@ -95,8 +135,16 @@ function adicionarUrl(req, res) {
 /**
  * DELETE /api/admin/urls/:id
  * Remove uma URL autorizada
+ * REQUER: chave de segurança "1526105" (via header X-Admin-Key, body.chave ou query.chave)
  */
 function removerUrl(req, res) {
+  // Validar chave de segurança
+  const validacao = validarChaveSeguranca(req);
+  if (!validacao.valido) {
+    logger.warn('Tentativa de remover URL sem chave válida', { ip: req.ip, motivo: validacao.motivo });
+    return forbidden(res, validacao.motivo);
+  }
+
   const { id } = req.params;
 
   try {
@@ -104,9 +152,10 @@ function removerUrl(req, res) {
     const result = authDb.prepare('DELETE FROM urls_autorizadas WHERE id = ?').run(id);
 
     if (result.changes === 0) {
-      return internalError(res, 'URL não encontrada');
+      return notFound(res, 'URL não encontrada');
     }
 
+    logger.info('URL autorizada removida, id: ' + id, { ip: req.ip });
     return success(res, null, 'URL removida com sucesso');
   } catch (error) {
     logger.error('Erro ao remover URL autorizada:', error);

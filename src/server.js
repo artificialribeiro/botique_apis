@@ -4,6 +4,12 @@
  * 
  * Sistema de gestão completo para Boutique Diniz
  * Inclui: Clientes, Produtos, Estoque, Pedidos, Caixa, Backup e mais
+ *
+ * CORREÇÃO v4 — CORS e segurança para hospedagem em plataformas externas:
+ *   - CORS aceita TODAS as origens (resolve bloqueio do Chrome em iframes)
+ *   - Helmet configurado para permitir embedding em qualquer plataforma
+ *   - Cadastro de URLs autorizadas protegido por chave de segurança
+ *   - Headers X-Frame-Options removidos para permitir iframe
  */
 
 require('dotenv').config();
@@ -33,63 +39,33 @@ app.set('trust proxy', 1);
 // MIDDLEWARES DE SEGURANÇA
 // ============================================
 
-// Helmet - Headers de segurança
+// Helmet - Headers de segurança (configurado para permitir iframe/embedding)
 app.use(helmet({
   contentSecurityPolicy: false,
-  crossOriginEmbedderPolicy: false
+  crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: false,
+  crossOriginResourcePolicy: false,
+  frameguard: false,              // Permite ser carregado em iframe de qualquer origem
+  xFrameOptions: false            // Remove X-Frame-Options para não bloquear iframe
 }));
 
 // ============================================
-// CORS - CONFIGURAÇÃO ROBUSTA
+// CORS - ACEITA TODAS AS ORIGENS
 // ============================================
 
-// Middleware CORS com suporte completo
+// Quando o sistema está hospedado dentro de outro programa/plataforma,
+// o Chrome bloqueia requisições cross-origin. Para resolver isso,
+// aceitamos TODAS as origens. A segurança é feita via API Key + Token.
 app.use(cors({
-  origin: function(origin, callback) {
-    // Permitir requisições sem origin (mobile apps, desktop apps, curl, etc)
-    if (!origin) {
-      return callback(null, true);
-    }
-    
-    // Permitir localhost em desenvolvimento
-    if (process.env.NODE_ENV !== 'production') {
-      return callback(null, true);
-    }
-    
-    // Em produção, validar contra lista de origens autorizadas
-    try {
-      const db = require('./config/database');
-      const authDb = db.getAuth();
-      
-      // Buscar URLs autorizadas
-      const authorizedUrls = authDb.prepare('SELECT url FROM urls_autorizadas').all();
-      
-      if (authorizedUrls.length === 0) {
-        // Se não houver URLs configuradas, permitir todas (fallback)
-        return callback(null, true);
-      }
-      
-      const isAuthorized = authorizedUrls.some(item => origin.startsWith(item.url));
-      
-      if (isAuthorized) {
-        callback(null, true);
-      } else {
-        logger.warn('CORS bloqueado: origem não autorizada: ' + origin);
-        callback(new Error('CORS nao permitido'));
-      }
-    } catch (error) {
-      logger.error('Erro ao validar CORS:', error);
-      // Em caso de erro, permitir (fallback seguro)
-      callback(null, true);
-    }
-  },
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  origin: true,                   // Aceita QUALQUER origem
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
   allowedHeaders: [
     'Content-Type',
     'X-API-KEY',
     'X-API-TOKEN',
     'X-User-Id',
     'X-User-Type',
+    'X-Admin-Key',
     'Authorization',
     'Accept',
     'Origin',
@@ -102,28 +78,35 @@ app.use(cors({
   optionsSuccessStatus: 200
 }));
 
-// Middleware adicional para headers CORS (fallback)
+// Middleware adicional para garantir headers CORS em TODAS as respostas
+// (fallback para casos onde o middleware cors() não cobre)
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  
-  // Permitir origem se não estiver bloqueada
+
+  // Sempre refletir a origem da requisição (ou * se não houver)
   if (origin) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   } else {
     res.setHeader('Access-Control-Allow-Origin', '*');
   }
-  
+
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-KEY, X-API-TOKEN, X-User-Id, X-User-Type, Authorization, Accept, Origin');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-KEY, X-API-TOKEN, X-User-Id, X-User-Type, X-Admin-Key, Authorization, Accept, Origin');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Max-Age', '86400');
   res.setHeader('Access-Control-Expose-Headers', 'Content-Length, X-JSON-Response-Size');
-  
-  // Responder a preflight requests
+
+  // Remover headers que bloqueiam iframe
+  res.removeHeader('X-Frame-Options');
+  res.removeHeader('Cross-Origin-Opener-Policy');
+  res.removeHeader('Cross-Origin-Resource-Policy');
+  res.removeHeader('Cross-Origin-Embedder-Policy');
+
+  // Responder a preflight requests imediatamente
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
-  
+
   next();
 });
 
@@ -144,8 +127,10 @@ const limiter = rateLimit({
   // Validar proxy corretamente
   validate: { trustProxy: false, xForwardedForHeader: false },
   skip: (req) => {
-    // Não aplicar rate limit em health check e admin login
-    return req.path === '/api/health' || req.path === '/api/admin/login';
+    // Não aplicar rate limit em health check, admin login e admin URLs
+    return req.path === '/api/health' || 
+           req.path === '/api/admin/login' ||
+           req.path.startsWith('/api/admin/');
   }
 });
 app.use('/api/', limiter);
@@ -165,21 +150,23 @@ app.use((req, res, next) => {
   // Aumentar timeout para uploads (60 segundos)
   req.setTimeout(60000);
   res.setTimeout(60000);
-  
+
   // Adicionar handler de timeout
   req.on('timeout', () => {
     logger.error('Timeout na requisição: ' + req.method + ' ' + req.path);
-    res.status(408).json({
-      success: false,
-      message: 'Requisicao expirou. Tente novamente.',
-      error: { code: 'REQUEST_TIMEOUT' }
-    });
+    if (!res.headersSent) {
+      res.status(408).json({
+        success: false,
+        message: 'Requisicao expirou. Tente novamente.',
+        error: { code: 'REQUEST_TIMEOUT' }
+      });
+    }
   });
-  
+
   res.on('timeout', () => {
     logger.error('Timeout na resposta: ' + req.method + ' ' + req.path);
   });
-  
+
   next();
 });
 
@@ -195,7 +182,7 @@ app.use('/uploads', express.static(path.join(config.upload.path)));
 
 app.use((req, res, next) => {
   const start = Date.now();
-  
+
   res.on('finish', () => {
     const duration = Date.now() - start;
     logger.http(req.method + ' ' + req.originalUrl + ' ' + res.statusCode + ' ' + duration + 'ms', {
@@ -206,7 +193,7 @@ app.use((req, res, next) => {
       ip: req.ip
     });
   });
-  
+
   next();
 });
 
@@ -277,7 +264,13 @@ const server = app.listen(config.server.port, config.server.host, () => {
   console.log('║  Endpoints:                                                ║');
   console.log('║  • Health: GET /api/health                                 ║');
   console.log('║  • Token:  POST /api/token                                 ║');
+  console.log('║  • Admin:  GET /api/admin                                  ║');
   console.log('║  • Docs:   Ver documentação                                ║');
+  console.log('╠════════════════════════════════════════════════════════════╣');
+  console.log('║  Segurança:                                                ║');
+  console.log('║  • CORS: Todas as origens aceitas (segurança via API Key)  ║');
+  console.log('║  • URLs: Cadastro protegido por chave de segurança         ║');
+  console.log('║  • Iframe: Permitido em qualquer plataforma                ║');
   console.log('╠════════════════════════════════════════════════════════════╣');
   console.log('║  Tarefas agendadas:                                        ║');
   console.log('║  • Backup automático: ' + config.backup.cronSchedule.padEnd(32) + '║');
@@ -286,9 +279,10 @@ const server = app.listen(config.server.port, config.server.host, () => {
   console.log('║  • Notificações: Email e Google Apps Script                ║');
   console.log('╚════════════════════════════════════════════════════════════╝');
   console.log('');
-  
+
   logger.info('Servidor ' + config.brand.name + ' iniciado em ' + config.server.host + ':' + config.server.port);
   logger.info('Desenvolvido por ' + config.brand.developer);
+  logger.info('CORS: Todas as origens aceitas');
 });
 
 // ============================================
@@ -297,18 +291,18 @@ const server = app.listen(config.server.port, config.server.host, () => {
 
 const gracefulShutdown = (signal) => {
   logger.info('Recebido sinal ' + signal + '. Encerrando ' + config.brand.name + '...');
-  
+
   server.close(() => {
     logger.info('Servidor HTTP encerrado');
-    
+
     // Fechar conexões com banco de dados
     const db = require('./config/database');
     db.closeAll();
-    
+
     logger.info('Conexoes com banco de dados encerradas');
     process.exit(0);
   });
-  
+
   // Forçar encerramento após 10 segundos
   setTimeout(() => {
     logger.error('Encerramento forcado apos timeout');
